@@ -1,0 +1,1665 @@
+#---------------SECTION 1-------------------------------------------------------
+#------------Set working Directory--------------------#
+# Set working directory
+setwd("/Users/maroraymond/Desktop/DS7010")
+
+# import and assign data
+Data <- read.csv("bank-additional-full.csv", stringsAsFactors = FALSE)
+head(Data)    # The top of the data
+
+# to know internal function of the dataset and understand the data
+str(Data)
+summary(Data)
+
+# ---------------EXPLORATORY ANALYSIS-------------------------------------#
+#---------------SECTION 2 -----------------------------------------------------
+#---------Check for duplicates in the dataset---------------------------------#
+duplicated_rows <- duplicated(Data)
+# Print the duplicated rows
+print(Data[duplicated_rows, ])
+# Count the number of duplicates(12 duplicates)
+duplicate_count <- sum(duplicated_rows)
+# Print the count of duplicates
+print(paste("Number of duplicates:", duplicate_count))
+# Subset the Data dataset to exclude duplicate rows
+Bank <- Data[!duplicated_rows, ]
+
+#----------------SECTION 3------------------------------------------------------
+#------------Check for missing values-----------------------#
+#No missing values
+apply(Bank, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+#missingness map
+library(Amelia)
+missmap(Bank, col = c("black", "grey"), legend = FALSE)
+
+#though there are no missing data, There are unknowns in the dataset, 
+#Figuring out the amount of rows affected by unknowns to know if it can removed or not
+#decided not to move forward with removing the unknown as they are part of a categories
+
+# Count the number of 'unknown' values in each column
+unknown_count <- apply(Bank == "unknown", 2, sum)
+print(unknown_count)
+
+# Get the names of the columns with 'unknown' values
+unknown_cols <- names(unknown_count[unknown_count > 0])
+
+# Create a bar chart showing the number of 'unknown' values in each column
+library(ggplot2)
+ggplot(data = data.frame(x = unknown_cols, y = unknown_count[unknown_count > 0]), aes(x = x, y = y)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  ggtitle("Unknown Values by Column") +
+  xlab("Column") +
+  ylab("Count") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+# Calculate the total number of rows in the dataset
+total_rows <- nrow(Bank)
+
+# Calculate the number of rows that contain 'unknown' values
+unknown_rows <- sum(apply(Bank[, unknown_cols] == "unknown", 1, any))
+
+# Calculate the number of rows 
+remaining_rows <- total_rows - unknown_rows
+print(remaining_rows)
+print(unknown_count)
+print(unknown_rows)
+
+# Calculate the percentage of rows that will likely be removed and that will  remain
+#Unknowns will not be removed as they can be seen in the categories, so they will act as a factor
+removed_percent <- unknown_rows / total_rows * 100
+remaining_percent <- remaining_rows / total_rows * 100
+
+# Create a data frame for the pie chart
+pie_data <- data.frame(
+  labels = c("Rows with 'unknown' values", "Rows without 'unknown' values"),
+  values = c(unknown_rows, remaining_rows)
+)
+
+# Create a pie chart
+ggplot(data = pie_data, aes(x = "", y = values, fill = labels)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar("y", start = 0) +
+  ggtitle("Proportion of Rows with and without 'Unknown' Values") +
+  theme_void() +
+  scale_fill_manual(values = c("blue", "green")) +
+  labs(fill = "Row Type", x = NULL, y = NULL) +
+  geom_text(aes(label = paste0(round(values / total_rows * 100), "%")), position = position_stack(vjust = 0.5)) +
+  theme(legend.position = "bottom")
+
+#unknowns were not removed as they represent 10,000+ rows in the dataset
+#Also they were not removed because the unknowns can be treated as a category going forwardin the analysis,as they could only be seen in the categorical variables and not in the class(y)
+
+#------------------SECTION 4------------------------------#
+#check the uniqueness and string of each variable to properly encode them as categorical
+str(Bank)
+unique(Bank$age)
+unique(Bank$job)
+unique(Bank$marital)
+unique(Bank$education)
+unique(Bank$default)
+unique(Bank$housing)
+unique(Bank$loan)
+unique(Bank$contact)
+unique(Bank$month)
+unique(Bank$day_of_week)
+unique(Bank$duration)
+unique(Bank$campaign)
+unique(Bank$pdays)
+unique(Bank$poutcome)
+unique(Bank$emp.var.rate)
+unique(Bank$cons.price.idx)
+unique(Bank$cons.conf.idx)
+unique(Bank$euribor3m)
+unique(Bank$nr.employed)
+unique(Bank$y)
+
+#Data subscription stated that 999 represented client was not previously contacted
+#Also with 999 being more than 90% of the data i decided to change it into a categorical variable(previously contacted) "Yes" & "No"
+table(Bank$pdays)
+
+#-------changing the name---#
+library(tidyverse)
+Bank <- (Bank%>%rename(Cpreviously = pdays))
+
+#------Changing Pdays to categorical variable-------#
+# Update the contents of "contacted previously" variable with No and yes
+set.seed(12345)
+Bank$Cpreviously <- ifelse(Bank$Cpreviously == 999, "no","yes")
+table(Bank$Cpreviously)
+
+#------Covert the needed variables---------#
+#convert the above variables to categories
+Bank$job <- factor(Bank$job)
+Bank$marital <- factor(Bank$marital)
+Bank$education <- factor(Bank$education)
+Bank$default <- factor(Bank$default)
+Bank$housing <- factor(Bank$housing)
+Bank$loan <- factor(Bank$loan)
+Bank$contact <- factor(Bank$contact)
+Bank$month <- factor(Bank$month)
+Bank$day_of_week <- factor(Bank$day_of_week)
+Bank$Cpreviously <- factor(Bank$Cpreviously)
+Bank$poutcome <- factor(Bank$poutcome)
+Bank$y <- factor(Bank$y)
+
+# confirm the internal function of the dataset
+str(Bank)
+
+#----------Data Visualisation---------------------------------------------#
+#--------------------SECTION 5 --------------------------------------------
+# 5.1-----------Visualization of the target variable---------------------#
+table(Bank$y)
+# Bar chart and Pie chart for target varible(term deposit)
+# Create a bar chart showing the distribution of the target variable
+ggplot(data = Bank, aes(x = y, fill = y)) +
+  geom_bar() +
+  ggtitle("Distribution of Target Variable") +
+  xlab("Subscribed a term deposit?") +
+  ylab("Count") +
+  scale_fill_manual(values = c("green", "blue"), labels = c("No", "Yes")) +
+  theme_classic()
+
+# Create a pie chart showing the distribution of the target variable
+yes_count <- sum(Bank$y == "yes")
+no_count <- sum(Bank$y == "no")
+total_count <- nrow(Bank)
+
+yes_prop <- yes_count / total_count
+no_prop <- no_count / total_count
+
+ggplot(data = data.frame(x = c("Yes", "No"), y = c(yes_prop, no_prop)), aes(x = "", y = y, fill = x)) +
+  geom_bar(stat = "identity", width = 1) +
+  ggtitle("Subscribed to term deposit") +
+  coord_polar("y", start = 0) +
+  theme_void() +
+  theme(legend.position = "bottom") +
+  geom_text(aes(label = paste0(round(y*100, 2), "%")), position = position_stack(vjust = 0.5))
+
+
+#-------------------Section 5.2------------------------------------------------#
+#-----Visualizing using Bar Plots of all categorical against target variable---------------#
+barplot(table(Bank$y,Bank$job),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by job", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$marital),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by marital", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$education),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by education", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$default),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by default", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$housing),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by housing ", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$loan),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by loan", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$contact),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by contact", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$month),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by month", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$day_of_week),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by day_of_week", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$Cpreviously),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by Cpreviously", legend.text = TRUE, beside = TRUE)
+barplot(table(Bank$y,Bank$poutcome ),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by poutcome", legend.text = TRUE, beside = TRUE)
+
+#-----------------------Section 5.3-------------------------------------------#
+#------------Boxplots of numerical variable against output(y) for ----------#
+boxplot(age~y, data=Bank, col="darkorange", main="age/subscription to term deposit")
+boxplot(duration~y, data=Bank, col="darkorange", main="duration/subscription to term deposit")
+boxplot(campaign~y, data=Bank, col="darkorange", main="campaign/subscription to term deposit")
+boxplot(previous~y, data=Bank, col="darkorange", main="previous/subscription to term deposit")
+boxplot(emp.var.rate~y, data=Bank, col="darkorange", main="emp.var.rate/subscription to term deposit")
+boxplot(cons.price.idx~y, data=Bank, col="darkorange", main="cons.price.idx/subscription to term deposit")
+boxplot(cons.conf.idx~y, data=Bank, col="darkorange", main="cons.conf.idx/subscription to term deposit")
+boxplot(euribor3m~y, data=Bank, col="darkorange", main="euribor3m/subscription to term deposit")
+boxplot(nr.employed~y, data=Bank, col="darkorange", main="nr.employed/subscription to term deposit")
+
+#---------------------Section 5.5-----------------------------------------------#
+#-----Chart for each numerical varibales against target variable---------------#
+library(ggplot2)
+# Create a histogram plot with density curve for age
+ggplot(Bank, aes(x = age)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "age",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for duration
+ggplot(Bank, aes(x = duration)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "Duration",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for duration
+ggplot(Bank, aes(x = campaign)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "green", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "campaign",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for previous
+ggplot(Bank, aes(x = previous)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "previous",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for emp.var.rate
+ggplot(Bank, aes(x = emp.var.rate)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "emp.var.rate",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for cons.price.idx
+ggplot(Bank, aes(x = cons.price.idx)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "cons.price.idx",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for cons.conf.idx
+ggplot(Bank, aes(x = cons.conf.idx)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "cons.conf.idx",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for euribor3m
+ggplot(Bank, aes(x = euribor3m)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "euribor3m",
+       y = "Density") +
+  theme_minimal()
+
+# Create a histogram plot with density curve for nr.employed
+ggplot(Bank, aes(x = nr.employed)) +
+  geom_histogram(aes(y = ..density..), binwidth = 2, fill = "grey", color = "green") +
+  geom_density(color = "blue", lwd = 0.3) +
+  labs(title = "Histogram with Density Curve",
+       x = "nr.employed",
+       y = "Density") +
+  theme_minimal()
+
+#skewness test for numeric variables
+# age,duration, campaign, previous, and nr.employed have positive skewness,indicating that 
+#their distributions are skewed to the right. emp.var.rate and euribor3m have negative skewness, 
+#indicating that their distributions are skewed to the left. cons.price.idx and cons.conf.idx 
+#have skewness values close to 0, suggesting that their distributions are approximately symmetric.
+install.packages("moments")
+library(moments)
+#skewness
+skewness(Bank$age)
+skewness(Bank$duration)
+skewness(Bank$campaign)
+skewness(Bank$previous)
+skewness(Bank$emp.var.rate)
+skewness(Bank$cons.price.idx)
+skewness(Bank$cons.conf.idx)
+skewness(Bank$euribor3m)
+skewness(Bank$nr.employed)
+
+#5.6--------------Visualize Age against y--------------------------------------# hypothesis
+barplot(table(Bank$y,Bank$age),col = c("deepskyblue4", "darkorange"),main="Term deposit Distribution of all clients by age", legend.text = TRUE, beside = TRUE)
+
+
+#------------------SECTION 6---------------------------------------------------
+#---------Standardization of numeric variables------------#
+maxs <- apply(Bank[,c(1,11,12,14,16:20)], 2, max)
+mins <- apply(Bank[,c(1,11,12,14,16:20)], 2, min)
+Bank[,c(1,11,12,14,16:20)] <- scale(Bank[,c(1,11,12,14,16:20)], center = mins, scale = maxs - mins)
+str(Bank[,c(1,11,12,14,16:20)])
+
+
+#-------------------SECTION 7---------------------------------------------------
+#Change outcome variable yes and no to  value 0,1
+set.seed(12345)
+Bank$y <-as.factor(ifelse(Bank$y=="no",0,1))
+str(Bank$y)
+table(Bank$y)
+
+#-----------------SECTION 8------------------------------------------------------
+#-------------  Statistical test ---------------------------#
+#---------------Section 8.1------------#
+#correlation between categorical variables and the outcome y(subscribed to term)
+#shows loan and housing with p_value greater than 0.05 which means there may not be a significant association or dependence with the output variable "y"
+#CHI-SQUARED
+library(stats) 
+#Chi-Squared test for each categorical variable and y
+columns_cor1 <- c("job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week", "Cpreviously", "poutcome")
+columns_cor2 <- Bank[, columns_cor1]
+
+# Define a function to perform chi-squared test and extract results
+perform_chi_squared <- function(col) {
+  result <- chisq.test(columns_cor2[[col]], Bank$y)
+  return(list(Column = col,
+              Chi_squared_statistic = result$statistic,
+              Degrees_of_freedom = result$parameter,
+              p_value = result$p.value))
+}
+
+# apply the function to each column of interest
+results_cor <- lapply(columns_cor1, perform_chi_squared)
+
+# Convert the results to a data frame
+Correlation_results_df <- do.call(rbind, results_cor)
+
+# Print the results
+print(Correlation_results_df)
+
+#-------correlation between numerical variables(8.2)---------------------------------#
+#euribor3m will be removed because of the strong correlation with emp.var.rate & nr.employed
+install.packages("corrgram")
+library(corrgram)
+library(corrplot)
+Bank.cor.num  <- cor(Bank[,c(1,11,12,14,16:20)],use='pairwise.complete.obs')
+corrplot(Bank.cor.num, method = "number")
+corrgram(Bank.cor.num, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main=" Numerical Variables correlation")
+#further look into em.var.rate,euribor3m, and nr.employed
+library(corrplot)
+Bank.cor.num2  <- cor(Bank[,c(16,19,20)],use='pairwise.complete.obs')
+corrplot(Bank.cor.num2, method = "number")
+corrgram(Bank.cor.num2, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main=" Numerical Variables correlation")
+cor(Bank[,c(16,19,20)])
+
+
+#------------------Boruta (8.3)------------------------------#
+#further confirms the Chi-squared test stating housing and loan are not important variables as regards to y
+install.packages("Boruta")
+#Alternatively boruta can be used
+library(Boruta)
+
+# Perform Boruta feature selection
+set.seed(12345) 
+boruta_data <- as.data.frame(Bank) # Convert to data frame if needed
+boruta_target <- boruta_data$y # Extract target variable
+boruta_data$y <- NULL # Remove target variable from feature matrix
+boruta_result <- Boruta(x = as.matrix(boruta_data), y = boruta_target, pValue = 0.05,
+                        mcAdj = TRUE,
+                        maxRuns = 100,
+                        doTrace = 0,
+                        holdHistory = TRUE,
+                        getImp = getImpRfZ)
+# Print Boruta results
+print(boruta_result)
+
+# Plot Boruta results
+plot(boruta_result, xlab = "Variable Importance", main = "Boruta Variable Importance")
+
+# Get selected features
+selected_features <- getSelectedAttributes(boruta_result)
+print(selected_features)
+
+
+#-----------------SECTION 9----------------------------------------------------#
+#-------------Feature selection------------#
+#house,Loan will be removed based on correlation and Boruta
+#euribor will be removed based of correlation between numerical variables
+#"duration" would be removed as The value of this variable indicates the length of the last contact duration (if none, duration = 0). 
+#Since it’s value is known only after the call was made, the authors encourage to discard this variable if one wants to have realistic predictive model.
+# Create a new data frame by excluding columns
+bank_var <- names(Bank) %in% c("duration", "loan","euribor3m", "housing")
+Bank_new <- Bank[!bank_var]
+str(Bank_new)
+
+table(Bank_new$y)
+
+#------------------------SECTION 10 ----------------------------------------------
+#------------Randomise & Create Dataset from Feature selection--------------#
+#Randomise data
+set.seed(12345)
+Bank_new1 <- Bank_new[order(runif(41176)), ]
+
+#Export new dataframe for testing and training of all Models.
+write.csv(Bank_new1, "Bank_new1.csv") #To mitigate Bias
+
+# remove all variables from the environment
+rm(list=ls())
+
+#------------------------SECTION 11 ----------------------------------------------
+#------------------------Balanced RANDOM FOREST----------------------------------#
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+table(Bank_Data$y)
+
+# split data into 80% & 20% for train and test respectively  
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+# check the proportion of class variable
+prop.table(table(Bank_train$y))
+prop.table(table(Bank_test$y))
+
+apply(Bank_test, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+apply(Bank_train, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+
+
+#--------Model RF---------------#
+install.packages("randomForest")
+library(randomForest)
+
+set.seed(12345)
+rf <- randomForest(y ~ ., data = Bank_train)
+# summary of model
+rf
+install.packages("vip")
+library(vip)
+# Construct variable importance plot
+vip(rf, aesthetics = list(colour="brown", fill="turquoise"))
+
+# apply the model to make predictions
+p <- predict(rf, Bank_test)
+
+# evaluate
+install.packages("gmodels")
+library(gmodels)
+library(caret)
+
+CrossTable(Bank_test$y, p,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+confusionMatrix( Bank_test$y, p, mode = "everything", positive = "1")#specify the positive class 1 which is yes(subscribed to term deposit)
+
+# obtain ROC and AUC
+library(ROCR)
+prob <- as.data.frame(predict(rf, Bank_test, type = "prob"))
+res <- as.data.frame(cbind(p, prob))
+head(res)
+pred <- prediction(predictions = res[3], labels = Bank_test$y)
+print(res[3])
+# ROC
+perf1 <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf2 <- performance(pred,  measure ="auc")
+perf2@y.values
+
+# remove all variables from the environment
+rm(list=ls())
+
+
+#------------------Section 11.1-----------------------------------------------#
+#-----------------Balanced Random forest---------------------------------------#
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+#------Build model----------------#
+library(randomForest)
+
+set.seed(12345)
+rf <- randomForest(y ~ ., data = Bank_train)
+# summary of model
+rf
+install.packages("vip")
+library(vip)
+# Construct variable importance plot
+vip(rf, aesthetics = list(colour="brown", fill="turquoise"))
+
+# apply the model to make predictions
+p <- predict(rf, Bank_test)
+
+# evaluate
+install.packages("gmodels")
+library(gmodels)
+library(caret)
+
+CrossTable(Bank_test$y, p,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+confusionMatrix(Bank_test$y, p,  mode = "everything", positive = "1")#specify the positive class 1 which is yes(subscribed to term deposit)
+
+# obtain ROC and AUC
+library(ROCR)
+prob <- as.data.frame(predict(rf, Bank_test, type = "prob"))
+res <- as.data.frame(cbind(p, prob))
+head(res)
+pred <- prediction(predictions = res[3], labels = Bank_test$y)
+print(res[3])
+# ROC
+perf1 <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf2 <- performance(pred,  measure ="auc")
+perf2@y.values
+
+# remove all variables from the environment
+rm(list=ls())
+
+#------------------------SECTION 12----------------------------------------------
+#-------------------------Unbalanced Decision Tree---------------------------------#
+setwd(dirname(file.choose()))
+getwd()
+
+library(C50)
+library("partykit")
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+table(Bank_Data$y)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+
+#-----Build First DT model-------#
+#Plotting the Decision Tree of the Training set
+library(rpart)
+library(rpart.plot)
+fit <- rpart(y~., data = Bank_train, method = 'class')
+rpart.plot(fit, extra = "auto", main="Decision Tree Schematic of Trained Model")
+
+# training a model on the data
+# build the simplest decision tree
+library(C50)
+set.seed(12345)
+Bank_model <- C5.0(Bank_train[-17], Bank_train$y)
+
+# display simple facts about the tree
+Bank_model
+# display detailed information about the tree
+summary(Bank_model)
+
+# create a factor vector of predictions on test data
+Bank_pred1 <- predict(Bank_model, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+library(gmodels)
+CrossTable(Bank_test$y, Bank_pred1,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+# more diagnostics
+library(caret)
+confusionMatrix(Bank_test$y, Bank_pred1, mode ="everything", positive = "1")
+
+
+#----improving model performance-------#
+#Pruning the tree
+# pruning the tree to simplify and/or avoid over-fitting
+?C5.0Control
+
+set.seed(12345)
+Bank_model_prune <- C5.0(Bank_train[-17], Bank_train$y,
+                         control = C5.0Control(minCases = 100)) #large training dataset requires to fairly high mincases to prevent overfitting and ensure that the resulting decision tree model has a reasonable level of complexity.
+Bank_model_prune
+summary(Bank_model_prune)
+Bank_model_prune_pred <- predict(Bank_model_prune, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+CrossTable(Bank_test$y, Bank_model_prune_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual', 'predicted'))
+
+# more evaluation statistics using Confusion Matrix
+confusionMatrix(Bank_test$y,Bank_model_prune_pred, mode = "everything", positive = "1")
+
+# prepare probability data for outcomes
+dt_prob_prune <- predict(Bank_model_prune, Bank_test, type = "prob")
+# bind with test and earlier predicted data
+dt_res_prune <- cbind(Bank_test, Bank_model_prune_pred, dt_prob_prune)
+head(dt_res_prune)
+# create a prediction object
+dt_pred <- prediction(predictions = dt_res_prune[20], labels = dt_res_prune$y)
+
+# plot ROC curve
+?performance()
+dt_perf0 <- performance(dt_pred, measure = "tpr", x.measure = "fpr")
+plot(dt_perf0, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+
+# calculate the area under the curve (AUC)
+dt_perf1 <- performance(dt_pred,  measure ="auc")
+dt_perf1@y.values
+
+
+#------third Model---------#
+# boosted decision tree with 10 trials
+set.seed(12345)
+Bank_model_boost <- C5.0(Bank_train[-17], Bank_train$y, control = C5.0Control(minCases = 10), trials = 10)
+Bank_model_boost
+plot(Bank_model_boost, Main= "Boosted Model Decision Tree")
+
+Bank_model_boost_pred <- predict(Bank_model_boost, Bank_test)
+summary(Bank_model_boost_pred)
+CrossTable(Bank_test$y, Bank_model_boost_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+confusionMatrix(Bank_test$y, Bank_model_boost_pred, mode = "everything", positive = "1")
+
+# prepare probability data for outcomes
+dt_prob <- predict(Bank_model_boost, Bank_test, type = "prob")
+# bind with test and earlier predicted data
+dt_res <- cbind(Bank_test, Bank_model_boost_pred, dt_prob)
+head(dt_res)
+# create a prediction object
+dt_pred2 <- prediction(predictions = dt_res[20], labels = dt_res$y)
+
+# plot ROC curve
+?performance()
+dt_perf2 <- performance(dt_pred2, measure = "tpr", x.measure = "fpr")
+plot(dt_perf2, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+
+# calculate the area under the curve (AUC)
+dt_perf3 <- performance(dt_pred2,  measure ="auc")
+dt_perf3@y.values
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#---------------------Section 12.1 --------------------------------------------#
+#---------------------Balanced(ROSE) Decision Tree Models-----------------------#
+setwd(dirname(file.choose()))
+getwd()
+
+library(C50)
+library("partykit")
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+table(Bank_Data$y)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+#Plotting the Decision Tree of the Training set
+library(rpart)
+library(rpart.plot)
+fit <- rpart(y~., data = Bank_train, method = 'class')
+rpart.plot(fit, extra = "auto", main="Decision Tree Schematic of Trained Model")
+
+# training a model on the data
+# build the simplest decision tree
+library(C50)
+set.seed(12345)
+Bank_model <- C5.0(Bank_train[-17], Bank_train$y)
+
+# display simple facts about the tree
+Bank_model
+# display detailed information about the tree
+summary(Bank_model)
+
+# create a factor vector of predictions on test data
+Bank_pred1 <- predict(Bank_model, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+library(gmodels)
+CrossTable(Bank_test$y, Bank_pred1,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+# more diagnostics
+library(caret)
+confusionMatrix(Bank_test$y, Bank_pred1, mode = "everything", positive = "1")
+
+#----improving model performance-------#
+#Pruning the tree
+# pruning the tree to simplify and/or avoid over-fitting
+?C5.0Control
+
+set.seed(12345)
+Bank_model_prune <- C5.0(Bank_train[-17], Bank_train$y,
+                         control = C5.0Control(minCases = 100)) #large training dataset requires to fairly high mincases to prevent overfitting and ensure that the resulting decision tree model has a reasonable level of complexity.
+Bank_model_prune
+summary(Bank_model_prune)
+Bank_model_prune_pred <- predict(Bank_model_prune, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+CrossTable(Bank_test$y, Bank_model_prune_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual', 'predicted'))
+
+# more evaluation statistics using Confusion Matrix
+confusionMatrix(Bank_test$y,Bank_model_prune_pred, mode = "everything", positive = "1")
+
+# prepare probability data for outcomes
+dt_prob_prune <- predict(Bank_model_prune, Bank_test, type = "prob")
+# bind with test and earlier predicted data
+dt_res_prune <- cbind(Bank_test, Bank_model_prune_pred, dt_prob_prune)
+head(dt_res_prune)
+# create a prediction object
+dt_pred <- prediction(predictions = dt_res_prune[20], labels = dt_res_prune$y)
+
+# plot ROC curve
+?performance()
+dt_perf0 <- performance(dt_pred, measure = "tpr", x.measure = "fpr")
+plot(dt_perf0, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+
+# calculate the area under the curve (AUC)
+dt_perf1 <- performance(dt_pred,  measure ="auc")
+dt_perf1@y.values
+
+
+#------third Model---------#
+# boosted decision tree with 10 trials
+set.seed(12345)
+Bank_model_boost <- C5.0(Bank_train[-17], Bank_train$y, control = C5.0Control(minCases = 100), trials = 10)
+Bank_model_boost
+plot(Bank_model_boost, Main= "Boosted Model Decision Tree")
+
+Bank_model_boost_pred <- predict(Bank_model_boost, Bank_test)
+summary(Bank_model_boost_pred)
+CrossTable(Bank_test$y, Bank_model_boost_pred,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+confusionMatrix(Bank_test$y, Bank_model_boost_pred, mode = "everything", positive = "1")
+
+# prepare probability data for outcomes
+dt_prob <- predict(Bank_model_boost, Bank_test, type = "prob")
+# bind with test and earlier predicted data
+dt_res <- cbind(Bank_test, Bank_model_boost_pred, dt_prob)
+head(dt_res)
+# create a prediction object
+dt_pred2 <- prediction(predictions = dt_res[20], labels = dt_res$y)
+
+# plot ROC curve
+?performance()
+dt_perf2 <- performance(dt_pred2, measure = "tpr", x.measure = "fpr")
+plot(dt_perf2, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+
+# calculate the area under the curve (AUC)
+dt_perf3 <- performance(dt_pred2,  measure ="auc")
+dt_perf3@y.values
+
+# Remove all variables from the environment
+rm(list=ls())
+
+
+#------------------------SECTION 13----------------------------------------------
+#-------------------Unbalanced Bagging------------------------------------------#
+library(ipred)
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%(2*)
+#Bagging
+?bagging()
+set.seed(12345)
+Bank_bagg<- bagging(y ~ ., data = Bank_train, nbagg = 25)#different nbagg cases were used but 25 striked a balance by also looking at the cross table
+#summary of model results
+summary(Bank_bagg)
+#apply the model to make predictions
+p<- predict(Bank_bagg, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+library(gmodels)
+CrossTable(Bank_test$y, p,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+# more diagnostics
+library(caret)
+confusionMatrix(Bank_test$y, p, mode = "everything" , positive = "1")
+
+#ROC and AUC
+library(pROC)
+library(ROCR)
+prob <- predict(Bank_bagg, Bank_test, type ="prob")
+res <- cbind(p, prob)
+head(res)
+pred <- prediction(predictions = res[,3], labels = Bank_test$y)
+# ROC
+perf1 <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize=TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf2 <- performance(pred,  measure ="auc")
+perf2@y.values
+
+
+#Second Bagging Model
+# estimate performance of ipred bagged trees
+library(e1071)
+
+set.seed(12345)
+ctrl <- trainControl(method = "cv", number = 10)
+m2 <- train(y ~ ., data = Bank_train, method = "treebag", trControl = ctrl)
+# summary of tuned results
+m2
+
+# apply the model to make predictions
+p2 <- predict(m2, Bank_test)
+
+# evaluate
+CrossTable(Bank_test$y, p2,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+confusionMatrix(Bank_test$y, p2, mode = "everything", positive = "1")
+
+# obtain ROC and AUC
+prob2 <- predict(m2, Bank_test, type = "prob")
+res2 <- cbind(p2, prob2)
+head(res2)
+pred2 <- prediction(predictions = res2[,3], labels = Bank_test$y)
+# ROC
+perf3 <- performance(pred2, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf4 <- performance(pred2,  measure ="auc")
+perf4@y.values
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#-----------------------Section 13.1-----------------------------------------#
+#-----------------------Balanced Bagging Algorithm------------------------------#
+#Balanced data set
+library(ipred)
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+#Bagging
+?bagging()
+set.seed(12345)
+Bank_bagg<- bagging(y ~ ., data = Bank_train, nbagg = 25)#different nbagg cases were used but 25 striked a balance by also looking at the cross table
+#summary of model results
+summary(Bank_bagg)
+#apply the model to make predictions
+p<- predict(Bank_bagg, Bank_test)
+
+# cross tabulation of predicted versus actual classes
+library(gmodels)
+CrossTable(Bank_test$y, p,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+
+# more diagnostics
+library(caret)
+confusionMatrix(Bank_test$y, p, mode = "everything" , positive = "1")
+
+#ROC and AUC
+library(pROC)
+library(ROCR)
+prob <- predict(Bank_bagg, Bank_test, type ="prob")
+res <- cbind(p, prob)
+head(res)
+pred <- prediction(predictions = res[,3], labels = Bank_test$y)
+# ROC
+perf1 <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf2 <- performance(pred,  measure ="auc")
+perf2@y.values
+
+
+#Second Bagging Model
+# estimate performance of ipred bagged trees
+library(e1071)
+
+set.seed(12345)
+ctrl <- trainControl(method = "cv", number = 10)
+m2 <- train(y ~ ., data = Bank_train, method = "treebag", trControl = ctrl)
+# summary of tuned results
+m2
+
+# apply the model to make predictions
+p2 <- predict(m2, Bank_test)
+
+# evaluate
+CrossTable(Bank_test$y, p2,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual y', 'predicted y'))
+confusionMatrix(Bank_test$y, p2, mode = "everything" ,positive = "1")
+
+# obtain ROC and AUC
+prob2 <- predict(m2, Bank_test, type = "prob")
+res2 <- cbind(p2, prob2)
+head(res2)
+pred2 <- prediction(predictions = res2[,3], labels = Bank_test$y)
+# ROC
+perf3 <- performance(pred2, measure = "tpr", x.measure = "fpr")
+plot(perf1, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf4 <- performance(pred2,  measure ="auc")
+perf4@y.values
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#------------------------SECTION 14---------------------------------------------
+#-------------------------Unbalanced XGBoost---------------------------------------#
+
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+str(Bank_Data)
+
+# Load the caret package
+library(caret)
+set.seed(12345)
+
+#Hot encode categoical variables
+Bank_Data[] <- lapply(Bank_Data, function(x) as.numeric(x))
+str(Bank_Data)
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#XGboost
+library(xgboost)
+
+dtrain <- xgb.DMatrix(data = as.matrix(Bank_train[,-17]), label = Bank_train$y)
+dtest <- xgb.DMatrix(data = as.matrix(Bank_test[-17]), label = Bank_test$y)
+
+set.seed(12345)
+model_xgb <- xgboost(data = dtrain, max.depth = 6, eta = 1, nthread = 4, nrounds = 10, objective = "binary:logistic")
+
+#simple details about model.
+model_xgb
+
+#summary of model.
+summary(model_xgb)
+
+pred <- predict(model_xgb, dtest)
+print(length(pred))
+print(head(pred))
+prediction <- as.numeric(pred > 0.5)
+print(head(prediction))
+
+#Test Error
+err <- mean(as.numeric(pred > 0.5) != Bank_test$y)
+print(paste("test-error=", err))
+#Importance
+importance_matrix <- xgb.importance(model = model_xgb)
+print(importance_matrix)
+xgb.plot.importance(importance_matrix = importance_matrix)
+#Cross table and Confision Matrix
+library(gmodels)
+CrossTable(Bank_test$y, prediction,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual ', 'predicted '))
+library(caret)
+confusionMatrix(as.factor(Bank_test$y), as.factor(prediction),  mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob <- predict(model_xgb, dtest, type = "prob")
+res <- cbind(pred, prob)
+head(res)
+pred1 <- prediction(predictions = res[,2], labels = Bank_test$y)
+# ROC
+perf <- performance(pred1, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred1,  measure ="auc")
+perf@y.values
+# Remove all variables from the environment
+rm(list=ls())
+
+#----------------------Section 14.1-------------------------------------------#
+#------------------Balanced(ROSE) XGboost---------------------------------------------#
+
+
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+str(Bank_Data)
+
+# Load the caret package
+library(caret)
+set.seed(12345)
+
+#Hot encode categoical variables
+Bank_Data[] <- lapply(Bank_Data, function(x) as.numeric(x))
+str(Bank_Data)
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+#XGboost
+library(xgboost)
+
+dtrain <- xgb.DMatrix(data = as.matrix(Bank_train[,-17]), label = Bank_train$y)
+dtest <- xgb.DMatrix(data = as.matrix(Bank_test[-17]), label = Bank_test$y)
+
+set.seed(12345)
+model_xgb <- xgboost(data = dtrain, max.depth = 6, eta = 1, nthread = 4, nrounds = 10, objective = "binary:logistic")
+
+#simple details about model.
+model_xgb
+
+#summary of model.
+summary(model_xgb)
+
+pred <- predict(model_xgb, dtest)
+print(length(pred))
+print(head(pred))
+prediction <- as.numeric(pred > 0.5)
+print(head(prediction))
+
+#Test Error
+err <- mean(as.numeric(pred > 0.5) != Bank_test$y)
+print(paste("test-error=", err))
+#Importance
+importance_matrix <- xgb.importance(model = model_xgb)
+print(importance_matrix)
+xgb.plot.importance(importance_matrix = importance_matrix)
+#Cross table and Confision Matrix
+CrossTable(Bank_test$y, prediction,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual ', 'predicted '))
+confusionMatrix( as.factor(Bank_test$y), as.factor(prediction), mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob <- predict(model_xgb, dtest, type = "prob")
+res <- cbind(pred, prob)
+head(res)
+pred1 <- prediction(predictions = res[,2], labels = Bank_test$y)
+# ROC
+perf <- performance(pred1, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred1,  measure ="auc")
+perf@y.values
+# Remove all variables from the environment
+rm(list=ls())
+
+#-------------------------SECTION 15--------------------------------------------
+#----------------UNBALANCED LOGISTIC REGRESSION ALGORITHM-----------------------#
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+y_test <- Bank_test$y
+Bank_test <- Bank_test[-17]
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(y_test))*100,1)
+
+#Create First Model
+# First round use all variables
+
+Bank_logis <- glm(y ~ age + job + marital + education + default + contact +
+                    month + day_of_week + campaign + Cpreviously + previous + poutcome +
+                    emp.var.rate + cons.price.idx + cons.conf.idx + nr.employed,
+                  data = Bank_train, family = "binomial")
+
+summary(Bank_logis)
+
+
+# Calculate Odds Ratio - Exp(b) with 95% confidence intervals (2 tail)
+exp(cbind(OR = coef(Bank_logis), confint(Bank_logis)))
+# Predict with Bank_logis
+Bank.log_te <- Bank_test[c( "age", "job", "marital", "education", "default", "contact",
+                            "month", "day_of_week", "campaign", "Cpreviously", "previous", "poutcome",
+                            "emp.var.rate", "cons.price.idx", "cons.conf.idx", "nr.employed")]
+y_pred <- predict.glm(Bank_logis, Bank.log_te)
+summary(y_pred)
+y_pred <- ifelse(exp(y_pred) > 0.5,1,0)
+y_pred <- as.factor(y_pred)
+
+# Assess accuracy
+library(gmodels)
+CrossTable(x = y_test, y = y_pred, prop.chisq = FALSE)
+library(caret)
+confusionMatrix(y_test, y_pred, mode = "everything", positive = "1")
+
+#Model = "Bank_logis"
+BankPlot<-roc(y_test ~ predict(Bank_logis,Bank.log_te, type="response"),
+              plot=TRUE, print.auc=TRUE,
+              col = "red", lwd=4, legacy.axes=TRUE,main="ROC Curve of Model1")
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#--------------------Section 15.1----------------------------------------------#
+#----------------BALANCED LOGISTIC REGRESSION ---------------------------------#
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+y_test <- Bank_test$y
+Bank_test <- Bank_test[-17]
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(y_test))*100,1)
+
+#Create First Model
+# First round use all variables
+
+Bank_logis <- glm(y ~ age + job + marital + education + default + contact +
+                    month + day_of_week + campaign + Cpreviously + previous + poutcome +
+                    emp.var.rate + cons.price.idx + cons.conf.idx + nr.employed,
+                  data = Bank_train, family = "binomial")
+
+summary(Bank_logis)
+
+
+# Calculate Odds Ratio - Exp(b) with 95% confidence intervals (2 tail)
+exp(cbind(OR = coef(Bank_logis), confint(Bank_logis)))
+# Predict with Bank_logis
+Bank.log_te <- Bank_test[c( "age", "job", "marital", "education", "default", "contact",
+                            "month", "day_of_week", "campaign", "Cpreviously", "previous", "poutcome",
+                            "emp.var.rate", "cons.price.idx", "cons.conf.idx", "nr.employed")]
+y_pred <- predict.glm(Bank_logis, Bank.log_te)
+summary(y_pred)
+y_pred <- ifelse(exp(y_pred) > 0.5,1,0)
+y_pred <- as.factor(y_pred)
+
+# Assess accuracy
+library(gmodels)
+CrossTable(x = y_test, y = y_pred, prop.chisq = FALSE)
+library(caret)
+confusionMatrix(y_test, y_pred, mode = "everything" , positive = "1")
+
+
+#Model1 = "Bank_logis"
+BankPlot<-roc(y_test ~ predict(Bank_logis,Bank.log_te, type="response"),
+              plot=TRUE, print.auc=TRUE,
+              col="red", lwd=4, legacy.axes=TRUE,main="ROC Curve of Model1")
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#-------------------------SECTION 16 --------------------------------------------
+#-----------UNBALANCED SUPPORT VERCOR MACHINES ALGORITHM-------------------------#
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(Bank_test$y))*100,1)
+
+#First Model
+set.seed(12345)
+library(kernlab)
+# vanilladot is a Linear kernel
+Bank_svm <- ksvm(y ~ ., data = Bank_train, kernel = "vanilladot", type = "C-svc", prob.model = TRUE)
+#Examining the Model's information
+Bank_svm
+
+# evaluating the First Model
+Bank_train.pred <- predict(Bank_svm, Bank_test)
+table(Bank_train.pred, Bank_test$y)
+round(prop.table(table(Bank_train.pred, Bank_test$y))*100,1)
+# sum diagonal for accuracy
+sum(diag(round(prop.table(table(Bank_train.pred, Bank_test$y))*100,1)))
+#svm plot of the prediction
+plot(Bank_train.pred)
+
+#Cross Table & Confusion Matrix
+library(gmodels)
+CrossTable(x = Bank_test$y, y = Bank_train.pred, prop.chisq = FALSE)
+library(caret)
+confusionMatrix( as.factor(Bank_test$y), as.factor(Bank_train.pred), mode = "everything", positive = "1")
+
+#AUC and ROC
+install.packages("ROCR")
+library(ROCR)
+prob <- predict(Bank_svm, Bank_test, type = "prob")
+res <- cbind(Bank_train.pred, prob)
+head(res)
+pred <- prediction(predictions = res[,3], labels = Bank_test$y)
+# ROC
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred,  measure ="auc")
+perf@y.values
+
+#----Second Mondel-----#
+# explore improvements of the model by changing the kernel using a non-linear function
+# Radial Basis-Gaussian (RBFDot Kernel string)
+set.seed(12345)
+library(kernlab)
+Bank_svm1 <- ksvm(y ~ ., data = Bank_train, kernel = "rbfdot", type = "C-svc", prob.model = TRUE)
+# look at basic information about the model
+Bank_svm1
+
+# evaluate Second Model
+Bank_svm1.pred1 <- predict(Bank_svm1, Bank_test)
+table(Bank_svm1.pred1, Bank_test$y)
+round(prop.table(table(Bank_svm1.pred1, Bank_test$y))*100,1)
+# sum diagonal for accuracy
+sum(diag(round(prop.table(table(Bank_svm1.pred1, Bank_test$y))*100,1)))
+
+#svm plot of the prediction
+plot(Bank_svm1.pred1)
+
+#Cross Table and Confusion matrix of second model
+library(gmodels)
+CrossTable(x = Bank_test$y, y = Bank_svm1.pred1, prop.chisq = FALSE)
+library(caret)
+confusionMatrix(as.factor(Bank_test$y), as.factor(Bank_svm1.pred1),  mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob2 <- predict(Bank_svm1, Bank_test, type = "prob")
+res2 <- cbind(Bank_svm1.pred1, prob2)
+head(res2)
+pred2 <- prediction(predictions = res2[,3], labels = Bank_test$y)
+# ROC
+perf2 <- performance(pred2, measure = "tpr", x.measure = "fpr")
+plot(perf2, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf3 <- performance(pred2,  measure ="auc")
+perf3@y.values
+# Remove all variables from the environment
+rm(list=ls())
+
+#---------------Section 15.1---------------------------------------------------#
+#---------------Balanced SVM---------------------------------------------------#
+#Set working directory
+setwd(dirname(file.choose()))
+getwd()
+
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because they are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = factor (Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(Bank_test$y))*100,1)
+
+#First Model
+set.seed(12345)
+library(kernlab)
+# vanilladot is a Linear kernel
+Bank_svm <- ksvm(y ~ ., data = Bank_train, kernel = "vanilladot", type = "C-svc", prob.model = TRUE)
+#Examining the Model's information
+Bank_svm
+
+# evaluating the First Model
+Bank_train.pred <- predict(Bank_svm, Bank_test)
+table(Bank_train.pred, Bank_test$y)
+round(prop.table(table(Bank_train.pred, Bank_test$y))*100,1)
+# sum diagonal for accuracy
+sum(diag(round(prop.table(table(Bank_train.pred, Bank_test$y))*100,1)))
+#svm plot of the prediction
+plot(Bank_train.pred)
+
+#Cross Table & Confusion Matrix
+library(gmodels)
+CrossTable(x = Bank_test$y, y = Bank_train.pred, prop.chisq = FALSE)
+library(caret)
+confusionMatrix(as.factor(Bank_test$y), as.factor(Bank_train.pred),  mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob <- predict(Bank_svm, Bank_test, type = "prob")
+res <- cbind(Bank_train.pred, prob)
+head(res)
+pred <- prediction(predictions = res[,3], labels = Bank_test$y)
+# ROC
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred,  measure ="auc")
+perf@y.values
+#-----Second Model------#
+# explore improvements of the model by changing the kernel using a non-linear function
+# Radial Basis-Gaussian (RBFDot Kernel string)
+set.seed(12345)
+library(kernlab)
+Bank_svm1 <- ksvm(y ~ ., data = Bank_train, kernel = "rbfdot", type = "C-svc", prob.model = TRUE)
+# look at basic information about the model
+Bank_svm1
+
+# evaluate Second Model
+Bank_svm1.pred1 <- predict(Bank_svm1, Bank_test)
+table(Bank_svm1.pred1, Bank_test$y)
+round(prop.table(table(Bank_svm1.pred1, Bank_test$y))*100,1)
+# sum diagonal for accuracy
+sum(diag(round(prop.table(table(Bank_svm1.pred1, Bank_test$y))*100,1)))
+
+#svm plot of the prediction
+plot(Bank_svm1.pred1)
+
+#Cross Table and Confusion matrix of second model
+library(gmodels)
+CrossTable(x = Bank_test$y, y = Bank_svm1.pred1, prop.chisq = FALSE)
+library(caret)
+confusionMatrix(as.factor(Bank_test$y), as.factor(Bank_svm1.pred1), mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob2 <- predict(Bank_svm1, Bank_test, type = "prob")
+res2 <- cbind(Bank_svm1.pred1, prob2)
+head(res2)
+pred2 <- prediction(predictions = res2[,3], labels = Bank_test$y)
+# ROC
+perf2 <- performance(pred2, measure = "tpr", x.measure = "fpr")
+plot(perf2, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf3 <- performance(pred2,  measure ="auc")
+perf3@y.values
+
+# Remove all variables from the environment
+rm(list=ls())
+
+#-------------------------SECTION 17 -------------------------------------------
+#-----------------Unbalanced Artficial Neural Network--------------------------------------#
+#install RSNNS and load the library
+install.packages('RSNNS')
+library('RSNNS')
+library("nnet")
+library(NeuralNetTools)
+
+# load the Bank dataset
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because there are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y <- as.numeric(Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(Bank_test$y))*100,1)
+
+#ANN classification using Neural net.
+# create ann model
+ann <-nnet(y ~ .,data = Bank_train,size=5, decay=5e-4, maxit=50)
+plotnet(ann)
+#Summary of the model
+ann
+summary(ann)
+
+#Create prediction
+ann.pred1 <- predict(ann, Bank_test)
+prediction <- as.numeric(ann.pred1 > 0.5)
+#subscribed to term deposit = 1 while not suscribed = 0
+CrossTable(Bank_test$y, prediction,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual', 'predicted '))
+caret::confusionMatrix(as.factor(Bank_test$y), as.factor(prediction),  mode = "everything", positive = "1")
+
+#AUC and ROC
+library(ROCR)
+prob <- predict(ann, Bank_test, type = "raw")
+res <- cbind(ann.pred1, prob)
+head(res)
+pred <- prediction(predictions = res[,2], labels = Bank_test$y)
+# ROC
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred,  measure ="auc")
+perf@y.values
+
+# remove all variables from the environment
+rm(list=ls())
+
+#-----------------SEction 17.1-----------------------------------------#
+#------------------ BALANCED Artificial NEURAL NETWORK-------------------------#
+#install RSNNS and load the library
+install.packages('RSNNS')
+library('RSNNS')
+library("nnet")
+library(NeuralNetTools)
+
+# load the Bank dataset
+#Load csv again but this time set stringsAsFactors = TRUE
+Bank_Data <- read.csv("Bank_new1.csv", stringsAsFactors = TRUE)# because there are factors
+str(Bank_Data)
+#Remove the ID(denoted by X) and also convert the class variable y to factor
+Bank_Data <- Bank_Data[-1]
+Bank_Data$y = as.numeric(Bank_Data$y)
+str(Bank_Data)
+
+#split Data to test and train
+set.seed(12345)
+Bank_train <- Bank_Data[1:32941, ]     # 80%
+Bank_test <- Bank_Data[32942:41176, ] # 20%
+
+#----Balance Training Dataset----#
+install.packages("ROSE")
+library(ROSE)
+
+# Apply minority oversampling and undersampling technique
+table(Bank_train$y)
+set.seed(12345)
+Bank_train <- ovun.sample(y~., data = Bank_train, method = "both", p = 0.5, seed = 12345, N = 32941) $data #N is the total number of 1 nd 0 if they are to be equal
+table(Bank_train$y) # output y is now balanced
+
+# Check proportions of y(subscribe to term deposit) in train and test
+round(prop.table(table(Bank_train$y))*100,1)
+round(prop.table(table(Bank_test$y))*100,1)
+
+#ANN classification using Neural net.
+# create ann model
+ann <-nnet(y ~ .,data = Bank_train,size=5, decay=5e-4, maxit=50)
+plotnet(ann)
+#Summary of the model
+ann
+summary(ann)
+
+#Create prediction
+ann.pred1 <- predict(ann, Bank_test)
+prediction <- as.numeric(ann.pred1 > 0.5)
+#subscribed to term deposit = 1 while not suscribed = 0
+CrossTable(Bank_test$y, prediction,
+           prop.chisq = FALSE, prop.c = FALSE, prop.r = FALSE,
+           dnn = c('actual', 'predicted '))
+caret::confusionMatrix(as.factor(Bank_test$y), as.factor(prediction),  mode = "everything", positive = "1")
+
+
+#AUC and ROC
+library(ROCR)
+prob <- predict(ann, Bank_test, type = "raw")
+res <- cbind(ann.pred1, prob)
+head(res)
+pred <- prediction(predictions = res[,2], labels = Bank_test$y)
+# ROC
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, lwd = 2, colorize = TRUE)
+abline(a = 0, b = 1, lty = 2)
+#AUC
+perf <- performance(pred,  measure ="auc")
+perf@y.values
+# remove all variables from the environment
+rm(list=ls())
+#----------------------------------END------------------------------------------

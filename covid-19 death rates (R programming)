@@ -1,0 +1,441 @@
+#Covid_data variables
+# A total of 5themes were used alongside death rate, which made a total of 17 variables
+
+#Total_Deaths - Covid death rate
+#AGE - Age0to24, Age25to64, Age65andover
+#ETHNICITY - White, Mixed , Asian , Black, Other ethnic group
+#RELIGION - Has_Relgion, No_religion, Religion not stated
+#SEX - Female, Male
+#HEALTH - Good Health, Fair Health, Bad Heath
+
+setwd("/Users/maroraymond/Desktop/DS7006/DAta")
+
+# import and assign data
+Data <- read.csv("Data.csv", stringsAsFactors = FALSE)
+head(Data)    # The top of the data
+
+# to know internal function of the dataset
+str(Data)
+
+#summary to get better understanding of the data
+summary(Data)
+
+
+#             EXPLORATORY ANALYSIS
+#No missing values
+apply(Data, MARGIN = 2, FUN = function(x) sum(is.na(x)))
+#missingness map
+library(Amelia)
+missmap(Data, col = c("black", "grey"), legend = FALSE)
+
+#clean data, remove La_code,La_name
+data_covid = subset(Data, select = -c(LA_code ,LA_name) )
+attach(data_covid)
+#check data again to know the structure again
+head(data_covid)
+str(data_covid)
+
+#boxplot dependent variable before standardization
+boxplot(Total_Deaths, xlab="covid deaths", ylab="Count")
+plot(Total_Deaths, main = "scatterplot")
+
+#Blockplot all variables before standardization
+boxplot (data_covid, main = "Data Covid")
+
+#STANDARDIZATION 
+#Do proportions(per thousand) for the dependent and independent variables
+data_covid <- within(data_covid, pFemale <-(Female/Total_pop)*1000)
+data_covid <- within(data_covid, pMale <-(Male/Total_pop)*1000)
+data_covid <- within(data_covid, pHas_Religion <-(Has_Religion/Total_pop)*1000)
+data_covid <- within(data_covid, pNo_Religion <-(No_Religion/Total_pop)*1000)
+data_covid <- within(data_covid, preligionnotstated <-(religionnotstated/Total_pop)*1000)
+data_covid <- within(data_covid, pWhite <-(White/Total_pop)*1000)
+data_covid <- within(data_covid, pMixed <-(Mixed/Total_pop)*1000)
+data_covid <- within(data_covid, pAsian <-(Asian/Total_pop)*1000)
+data_covid <- within(data_covid, pBlack <-(Black/Total_pop)*1000)
+data_covid <- within(data_covid, pOther_ethnic <-(Other_Ethnic/Total_pop)*1000)
+data_covid <- within(data_covid, p_age0to24 <-(age0to24/Total_pop)*1000)
+data_covid <- within(data_covid, p_age25to64 <-(age25to64/Total_pop)*1000)
+data_covid <- within(data_covid, p_age65andover <-(age65andover/Total_pop)*1000)
+data_covid <- within(data_covid, pGood_Health <-(Good_Health/Total_pop)*1000)
+data_covid <- within(data_covid, pFair_Health <-(Fair_Health/Total_pop)*1000)
+data_covid <- within(data_covid, pBad_Health <-(Bad_Health/Total_pop)*1000)
+data_covid <- within(data_covid, pTotal_Deaths <-(Total_Deaths/Total_pop)*1000)
+
+#select proportion and transformed total deaths
+data_covid2  <- data_covid[ ,c(19:35)]
+attach(data_covid2)
+
+# Test dependent variable for normality
+# graphically
+boxplot(pTotal_Deaths, xlab="covid deaths", ylab="Count")
+plot(pTotal_Deaths, main = "scatterplot")
+
+# label outliers
+library(TeachingDemos)
+# Load the function
+source("https://raw.githubusercontent.com/talgalili/R-code-snippets/master/boxplot.with.outlier.label.r")
+boxplot.with.outlier.label(pTotal_Deaths, seq_along(pTotal_Deaths),xlab="Covid Deaths (per thousand)", ylab="Count")
+
+# inspect outliers
+data_covid2[274,]
+data_covid2[48,]
+data_covid2[137,]
+data_covid2[89,]
+
+#to know the names of the cities inspect the "Data" table.
+Data[274,]
+Data[48,]
+Data[137,]
+Data[89,]
+
+# graphically
+qqnorm(pTotal_Deaths, xlab = "Theoretical Quantiles:Total_Deaths" )
+qqline(pTotal_Deaths, col = 2) ## red color
+
+# Plot dependent variable
+library(rcompanion)
+library(nortest)
+plotNormalHistogram(pTotal_Deaths, main = "Histogram", xlab = "pTotal_Deaths")
+
+#explore both dependent and independent variables
+boxplot (data_covid2, main = "Standardized Data Covid")
+
+#TEST FOR NORMALITY
+#plotNormalHistogram(Total_Deaths, main = "Histogram", xlab = "Total_Deaths",col = 2)
+# K-S test
+ks.test(pTotal_Deaths, "pnorm", mean(pTotal_Deaths), sd(pTotal_Deaths))
+# or... Shapiro-Wilk's test
+shapiro.test(pTotal_Deaths)
+# p-value is less than 0.05 so we reject the Null hypothesis H(0)
+
+#NORMALIZATION (SOFT MAX)
+#Normalize the dependent and independent variables
+library(DMwR2)
+Total_Deaths_nm <- apply(data_covid2, MARGIN = 2, FUN = function(x) (SoftMax(x,lambda = 5, mean(x), sd(x))))
+boxplot (Total_Deaths_nm, main = "Soft Max, lambda = 5")
+data_covid3 <- as.data.frame(Total_Deaths_nm)
+attach(data_covid3)
+plotNormalHistogram(pTotal_Deaths, main = "Total Deaths Histogram", xlab = "Total Deaths",  lwd = 3)
+rug(pTotal_Deaths) #Add Rug plot to show density distribution
+# confirm that the transformation was applied correctly
+summary(pTotal_Deaths)
+
+# Test dependent variable again for normality 
+# graphically
+qqnorm(pTotal_Deaths, xlab = "Theoretical Quantiles: Total Deaths" )
+qqline(pTotal_Deaths, col = 2, lwd=2) ## red color
+boxplot(pTotal_Deaths, main = "Normalized covid death",xlab="covid deaths", ylab="Count")
+
+# Plot original standardized covid_death and Normalized covid death
+plot(data_covid2$pTotal_Deaths, pTotal_Deaths, main = "Scatterplot", xlab = "pTotal_Deaths", ylab = "Total_Deaths_nm")
+boxplot(data_covid2$pTotal_Deaths, pTotal_Deaths, main = "Normalized Vs Standardized covid death", 
+        names = c("S_Covid_death", "NM_Covid_death"))
+ks.test(pTotal_Deaths, "pnorm", mean(pTotal_Deaths), sd(pTotal_Deaths))
+# or... Shapiro-Wilk's test
+shapiro.test(pTotal_Deaths)
+
+
+#CORRELATION 
+#correlation between independent variables
+plot(data_covid3)
+data_covid.cor1  <- cor(data_covid3[ ,c(-17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor1, method = "number")
+# print correlations
+round(data_covid.cor1, 2)
+#corplot
+library(corrplot)
+corrplot(data_covid.cor1, method = "number")
+
+#correlation between dependent variable and independent variables
+#Check with correlation coefficient
+library(polycor)
+data_covid.cor2 <- cor(data_covid3, use = "pairwise.complete.obs")
+# print correlations
+round(data_covid.cor2, 2)
+# Plot correlagram using correlation matrix
+corrplot(data_covid.cor2, is.corr = TRUE, type = "upper", tl.col = "black", tl.srt = 45)
+corrplot(data_covid.cor2, method = "number")
+
+# test correlation of dependent variable with each independent variables
+cor.test(pTotal_Deaths, pFemale, method = "spearman")
+cor.test(pTotal_Deaths, pMale, method = "spearman")
+cor.test(pTotal_Deaths, pHas_Religion, method = "spearman")
+cor.test(pTotal_Deaths, pNo_Religion, method = "spearman")
+cor.test(pTotal_Deaths, preligionnotstated, method = "spearman")
+cor.test(pTotal_Deaths, pWhite, method = "spearman")
+cor.test(pTotal_Deaths, pMixed, method = "spearman")
+cor.test(pTotal_Deaths, pAsian, method = "spearman")
+cor.test(pTotal_Deaths, pBlack, method = "spearman")
+cor.test(pTotal_Deaths, pOther_ethnic, method = "spearman")
+cor.test(pTotal_Deaths, p_age0to24, method = "spearman")
+cor.test(pTotal_Deaths, p_age25to64, method = "spearman")
+cor.test(pTotal_Deaths, p_age65andover, method = "spearman")
+cor.test(pTotal_Deaths, pGood_Health, method = "spearman")
+cor.test(pTotal_Deaths, pFair_Health, method = "spearman")
+cor.test(pTotal_Deaths, pBad_Health, method = "spearman")
+
+#correlation between sex theme and independent variable
+#male and female has collinearity so i picked female to move on with
+#they have the same correlation with p_total death
+library(corrgram)
+data_covid.cor3  <- cor(data_covid3[ ,c(1,2,17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor3, method = "number")
+corrgram(data_covid.cor3, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main="Sex theme")
+
+#correlation between religion theme and independent variable
+#i will move on with pHas_religion as it has the strongest correlation amongst the variables
+#pNo_religion was dropped because it has the lowest correlation with p_total death
+#Also selected preligionnotstated as it has the highest correlation with ptotal_deaths
+data_covid.cor4  <- cor(data_covid3[ ,c(3,4,5,17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor4, method = "number")
+corrgram(data_covid.cor4, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main="Religion theme")
+
+#correlation between ethnicity theme and independent variable
+#the strongest correlation amongst the variables with ptotal deaths were selected(pAsian and pWhite)
+#I selected pBlack as well because of previous literatures and sentiments
+
+data_covid.cor5  <- cor(data_covid3[ ,c(6:10,17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor5, method = "number")
+corrgram(data_covid.cor5, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main="Ethnicity theme")
+
+#correlation between age theme and independent variable
+#p_age0to24 was selected as it has the strongest correlation with p_total death
+#I selected page65andover as well because of previous literature and sentiments, that it affects covid death rate
+data_covid.cor6  <- cor(data_covid3[ ,c(11:13,17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor6, method = "number")
+corrgram(data_covid.cor6, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main="Age theme")
+
+#correlation between health theme and independent variable
+#pBadhealth was selected because it had the strongest correlation with ptotal deaths and strong correlation with goodhealth
+#fair health was also selected
+data_covid.cor7  <- cor(data_covid3[ ,c(14:16,17)],use='pairwise.complete.obs')
+corrplot(data_covid.cor7, method = "number")
+corrgram(data_covid.cor7, order=FALSE, cor.method = "pearson", lower.panel=panel.conf,
+         upper.panel=panel.pie, text.panel=panel.txt, main="Health theme")
+
+
+
+#       FACTOR ANALYSIS
+# removed the variables after going through the correlation matrix
+#dependent variable was also removed
+correlationVar <- names(data_covid3) %in% c( "pMale","pNo_Religion","pMixed","pOther_ethnic", "p_age25to64", "pTotal_Deaths", "pGood_Health")
+data_covid4 <- data_covid3[!correlationVar]
+str(data_covid4)
+rm(correlationVar)
+
+# Kaiser-Meyer-Olkin statistics: if overall MSA > 0.6, so i proceeded to do factor analysis
+#MSA score was 0.6, so i moved on to carry out the factor analysis
+library(psych)
+KMO(cor(data_covid4))
+
+# Determine Number of Factors to Extract
+library(nFactors)
+
+# get eigenvalues: eigen() uses a correlation matrix
+ev <- eigen(cor(data_covid4))
+ev$values
+# plot a scree plot of eigenvalues
+plot(ev$values, type="b", col="blue", xlab="variables")
+# calculate cumulative proportion of eigenvalue and plot
+ev.sum<-0
+for(i in 1:length(ev$value)){
+  ev.sum<-ev.sum+ev$value[i]
+}
+ev.list1<-1:length(ev$value)
+for(i in 1:length(ev$value)){
+  ev.list1[i]=ev$value[i]/ev.sum
+}
+ev.list2<-1:length(ev$value)
+ev.list2[1]<-ev.list1[1]
+for(i in 2:length(ev$value)){
+  ev.list2[i]=ev.list2[i-1]+ev.list1[i]
+}
+plot (ev.list2, type="b", col="red", xlab="number of components", ylab ="cumulative proportion")
+
+# From scree plot we should move forward with 5 components can explain more than 90% of the variation
+# Varimax Rotated Principal Components
+# retaining 'nFactors' components
+library(GPArotation)
+
+# principal() uses a data frame or matrix of correlations
+#Complexity ratio is quite low, so there was no need to weed at more variables by doing a second factor analysis
+#the five dominant variables are preligionnotstated,pAsian,p_age0to24,p_age065andover and fair_health
+#it is easier to identify the dominant variable so it can be used for regression modelling
+fit <- principal(data_covid4, nfactors=5, rotate="varimax")
+fit
+
+
+
+#CLUSTERING
+# Select the variables after factor analysis for use in clustering
+# Prepare Data
+data_covid4 <- na.omit(data_covid4) # listwise deletion of missing
+boxplot(data_covid4) # visualise the variables
+#No need to scale the variables as they are still in the range of 0-1
+
+# Ward Hierarchical Clustering
+d <- dist(data_covid4, method = "euclidean") # distance matrix
+
+set.seed(12345)
+fit <- hclust(d, method="ward.D")
+# plot(fit) # display dendogram
+plot (fit, labels = Data$LA_name)
+# draw dendogram with red borders around the 4 clusters
+groups <- cutree(fit, k=4) # cut tree into 4 clusters
+rect.hclust(fit, k=4, border="green")
+
+# assign cluster number to borough name
+mydata1 <- data.frame(Data$LA_code)
+names(mydata1)[1] <- "Code"
+mydata1 <- within (mydata1, Name <- Data$LA_name)
+mydata1 <- within (mydata1, cluster <- groups)
+
+mydata1
+write.csv(mydata1,file.choose())
+
+
+# K-Means Cluster Analysis
+set.seed(12345)
+fit <- kmeans(data_covid4, 4) # 4 cluster solution
+
+#visualise clusters
+library(cluster)
+library(fpc)
+
+clusplot(data_covid4, fit$cluster)       # from library(cluster)
+plotcluster(data_covid4, fit$cluster)    # from library(fpc)
+
+# get cluster means
+aggregate(data_covid4, by=list(fit$cluster),FUN = mean)
+
+# append cluster assignment
+mydata2 <- data.frame(Data$LA_code)
+names(mydata2)[1] <- "Code"
+mydata2 <- within (mydata2, Name <- Data$LA_name)
+mydata2 <- data.frame(mydata2, fit$cluster)
+
+mydata2
+write.csv(mydata2,file.choose())
+
+# library(maptools)  # also loads sp library
+# library(rgdal)
+# library(GISTools)
+# library(classInt)
+# library(RColorBrewer)
+# 
+# # Read in the shapefile of Local_Authority_Districts
+# Local_Authority_Districts <- readOGR(".", "Local_Authority_Districts")
+# plot(Local_Authority_Districts, border = "black", col = "lightgrey")
+# names(Local_Authority_Districts)
+# 
+# # merge map and attribute files
+# Local_Authority_Districts.jn <- merge(Local_Authority_Districts, mydata1, by.x="lad19cd", by.y="LA_code")
+# 
+# # set class intervals, colour and number of classes
+# shades <- shading(breaks=c(1,2,3,4,5), cols = brewer.pal(6,"Set2"))
+# choropleth(Local_Authority_Districts.jn, Local_Authority_Districts.jn$cluster, shades, main="hclust")
+# 
+# invisible(text(x=Local_Authority_Districts.jn$bng_e, y=Local_Authority_Districts.jn$bng_n, labels=as.character(Local_Authority_Districts.jn$cluster), cex=0.5))
+
+
+# REGRESSION MODELING
+# model with all variables
+#From model one we got a vif error "there are aliased coefficients in the model"
+#This happens When a regression model contains multicollinearity
+#What this means is that there is a strong (or perfect) correlation between two or more predictor variables in the model.
+#not a good model
+model1 <- lm(pTotal_Deaths ~ pFemale + pMale + pHas_Religion + pNo_Religion + preligionnotstated 
+             + pWhite + pMixed + pAsian + pBlack + pOther_ethnic + p_age0to24 + p_age25to64 
+             + p_age65andover + pGood_Health + pFair_Health + pBad_Health)
+summary(model1)
+# calculate variance inflation factor
+library(car)
+vif(model1)
+sqrt(vif(model1)) > 2  # if > 2 vif too high
+
+#MODEL 2 - selecting the variables with the strongest correlation with the ptotal death from looking at the correlation matrix for each theme. 
+#better than model 1, no internal correlation between the variables
+model2 <- lm(pTotal_Deaths ~ pAsian + preligionnotstated + pFemale +p_age0to24 + pBad_Health)
+summary(model2)
+vif(model2)
+sqrt(vif(model2)) > 2
+hist(model2$residuals)
+rug(model2$residuals)
+plot(model2$residuals ~ model2$fitted.values, xlab = "fitted values", ylab = "residuals")
+ks.test(model2$residuals, "pnorm", mean(model2$residuals), sd(model2$residuals))
+
+#remove the statistically insignificant variable pAge0to24
+#the best model so far
+model2a <- lm(pTotal_Deaths ~ pAsian + preligionnotstated + pFemale+ pBad_Health)
+summary(model2a)
+vif(model2a)
+sqrt(vif(model2a)) > 2
+library(relaimpo)
+calc.relimp(model2a, type = c("lmg"), rela = TRUE)
+
+
+# model with 10 variables representing components from factor analysis
+#model3 showed there was multicolinearity just like model1
+#not a good model
+correlationVar3 <- cor(data_covid4, method = "spearman")
+round(correlationVar3, 2)
+corrplot(correlationVar3, method = "number")
+
+model3 <- lm(pTotal_Deaths ~ pFemale + pHas_Religion + preligionnotstated + 
+               pWhite  + pAsian + pBlack + p_age0to24 + p_age65andover
+             + pFair_Health + pBad_Health)
+summary(model3)
+library(car)
+vif(model3)
+sqrt(vif(model3)) > 2
+
+#Create a model with the values dominant variables across the five dimensions from the factor analysis
+correlationVar4 <- cor(data_covid3[, c(5,8,12,13,15,17)], method = "spearman")
+round(correlationVar4, 2)
+corrplot(correlationVar4, method = "number")
+
+model4 <- lm(pTotal_Deaths ~ pAsian + preligionnotstated + p_age0to24 + p_age65andover + pFair_Health)
+summary(model4)
+vif(model4)
+sqrt(vif(model4)) > 2
+
+#MODEL 5
+#use stepwise to get the best model from all variables in the component analysis (model3)
+library(RcmdrMisc)
+model5 <- stepwise(model3, direction = "forward")
+summary(model5)
+vif(model5)
+sqrt(vif(model5)) > 2
+hist(model5$residuals)
+rug(model5$residuals)
+plot(model5$residuals ~ model5$fitted.values, xlab = "fitted values", ylab = "residuals")
+ks.test(model5$residuals, "pnorm", mean(model5$residuals), sd(model5$residuals))
+#calculate relative importance
+calc.relimp(model5, type = c("lmg"), rela = TRUE)
+
+#MODEL 6
+#use stepwise to get the best model from all the variables (model1)
+library(RcmdrMisc)
+model6 <- stepwise(model1, direction = "forward")
+summary(model6)
+vif(model6)
+sqrt(vif(model6)) > 2
+hist(model6$residuals)
+rug(model5$residuals)
+plot(model6$residuals ~ model6$fitted.values, xlab = "fitted values", ylab = "residuals")
+ks.test(model6$residuals, "pnorm", mean(model6$residuals), sd(model6$residuals))
+# relative importance of variables
+library(relaimpo)
+calc.relimp(model6, type = c("lmg"), rela = TRUE)
+
+#confirms model6 is the better model
+#shows that the variables included in the model6 are better at explaining the variance
+anova(model5, model6, test = "F")
+
+# remove all variables from the environment
+rm(list=ls())
